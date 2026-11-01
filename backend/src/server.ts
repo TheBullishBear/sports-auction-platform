@@ -295,8 +295,8 @@ app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
+const PORT = Number(process.env.PORT) || 4000;
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`=====================================================`);
   console.log(`🏏 Real-Time Sports Auction Platform Backend Online`);
   console.log(`🚀 Port: ${PORT}`);

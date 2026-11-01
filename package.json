@@ -5,6 +5,11 @@
   "main": "backend/dist/server.js",
   "scripts": {
     "build": "npm --prefix backend install && npm --prefix backend run build && npm --prefix frontend install && npm --prefix frontend run build",
-    "start": "npm --prefix backend start"
+    "start": "node backend/dist/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   }
 }
