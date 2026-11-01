@@ -11,6 +11,7 @@ import {
   Sparkles,
   Download,
   Users,
+  Gavel,
 } from 'lucide-react';
 import { useCricket } from '../context/CricketContext';
 import { Tournament, TournamentTeam, MatchFixture } from '../cricketTypes';
@@ -152,23 +153,37 @@ export const TournamentHub: React.FC<TournamentHubProps> = ({ onNavigateToScorer
             </p>
           </div>
 
-          {/* Tournament Switcher */}
-          {tournaments.length > 1 && (
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400">Switch:</span>
-              <select
-                value={currentTournament.id}
-                onChange={(e) => selectTournament(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white text-xs font-bold rounded-lg px-3 py-2"
-              >
-                {tournaments.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex items-center flex-wrap gap-2.5">
+            {/* Quick Link back to Auction */}
+            <button
+              onClick={() => {
+                window.location.hash = 'admin';
+              }}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-white border border-amber-500/30 text-xs font-bold transition shadow-sm"
+              title="Return to Auctioneer Command Desk"
+            >
+              <Gavel className="w-3.5 h-3.5 text-amber-400" />
+              <span>Auction Desk</span>
+            </button>
+
+            {/* Tournament Switcher */}
+            {tournaments.length > 1 && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-400">Switch:</span>
+                <select
+                  value={currentTournament.id}
+                  onChange={(e) => selectTournament(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 text-white text-xs font-bold rounded-lg px-2.5 py-1.5"
+                >
+                  {tournaments.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

@@ -12,6 +12,7 @@ import {
   X,
   History,
   Check,
+  Gavel,
 } from 'lucide-react';
 import { useCricket } from '../context/CricketContext';
 import { WicketType, ExtraType, BallEvent } from '../cricketTypes';
@@ -199,6 +200,17 @@ export const ScorerConsole: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              window.location.hash = 'admin';
+            }}
+            title="Return to Auctioneer Desk"
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition"
+          >
+            <Gavel className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Auction</span>
+          </button>
+
           <button
             onClick={toggleSunlightMode}
             title="Toggle Outdoor Sunlight Mode"
