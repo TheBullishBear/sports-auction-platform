@@ -33,6 +33,7 @@ export class DatabaseManager {
   private lock = new AsyncLock();
   private ledgerFilePath: string;
   private playersFilePath: string;
+  private teamsFilePath: string;
 
   private constructor() {
     const dataDir = path.join(__dirname, '..', 'data');
@@ -41,6 +42,7 @@ export class DatabaseManager {
     }
     this.ledgerFilePath = path.join(dataDir, 'bidding_ledger.jsonl');
     this.playersFilePath = path.join(dataDir, 'players_database.json');
+    this.teamsFilePath = path.join(dataDir, 'teams_database.json');
 
     this.session = {
       id: 'AUCTION-SESSION-2026',
@@ -139,6 +141,9 @@ export class DatabaseManager {
         count++;
       }
     }
+    if (count > 0) {
+      this.persistTeamsToDisk();
+    }
     return { count, maxPursePerTeam: amount };
   }
 
@@ -154,6 +159,9 @@ export class DatabaseManager {
         });
         count++;
       }
+    }
+    if (count > 0) {
+      this.persistTeamsToDisk();
     }
     return { count, totalPlayersPerTeam: slots };
   }
@@ -286,6 +294,108 @@ export class DatabaseManager {
     return Array.from(this.teams.values());
   }
 
+  public persistTeamsToDisk(): void {
+    try {
+      const allTeams = this.getAllTeams();
+      fs.writeFileSync(this.teamsFilePath, JSON.stringify(allTeams, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Failed to write teams database to disk:', err);
+    }
+  }
+
+  public addTeam(data: {
+    name: string;
+    code?: string;
+    logo?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    totalPurse?: number;
+    maxSlots?: number;
+  }): Team {
+    const id = `team-${Date.now()}`;
+    const code = (data.code && data.code.trim())
+      ? data.code.trim().toUpperCase()
+      : (data.name.trim().substring(0, 3).toUpperCase());
+    const totalPurse = data.totalPurse || this.session.maxPursePerTeam || 1000000000;
+    const maxSlots = data.maxSlots || this.session.totalPlayersPerTeam || 11;
+
+    // Palette of vibrant sports franchise colors
+    const colors = ['#0284c7', '#7c3aed', '#db2777', '#059669', '#d97706', '#dc2626', '#4f46e5', '#0891b2', '#f59e0b'];
+    const assignedColor = data.primaryColor || colors[this.teams.size % colors.length];
+
+    const newTeam: Team = {
+      id,
+      name: data.name.trim(),
+      code,
+      logo: (data.logo && data.logo.trim())
+        ? data.logo.trim()
+        : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=120&q=80',
+      primaryColor: assignedColor,
+      secondaryColor: data.secondaryColor || '#ffffff',
+      totalPurse,
+      remainingPurse: totalPurse,
+      maxSlots,
+      minSlots: maxSlots,
+      currentSlots: 0,
+      maxOverseas: 4,
+      currentOverseas: 0,
+      playersAcquired: [],
+    };
+
+    this.teams.set(id, newTeam);
+    this.persistTeamsToDisk();
+    return { ...newTeam };
+  }
+
+  public deleteTeam(id: string): { success: boolean; deletedTeam: Team } {
+    const team = this.teams.get(id);
+    if (!team) throw new Error(`Team ${id} not found`);
+
+    if (this.teams.size <= 1) {
+      throw new Error(`Cannot delete the only remaining franchise team. At least 1 team must exist.`);
+    }
+
+    // Release any players won by this team back to the auction pool as upcoming
+    let playersChanged = false;
+    for (const [pId, p] of this.players.entries()) {
+      if (p.winningTeamId === id) {
+        this.players.set(pId, {
+          ...p,
+          status: 'UPCOMING',
+          winningTeamId: null,
+          soldPrice: null,
+          currentBid: 0,
+          currentHighBidderId: null,
+        });
+        playersChanged = true;
+      }
+    }
+    if (playersChanged) {
+      this.persistPlayersToDisk();
+    }
+
+    // If currently on block and this team is the current high bidder, clear high bidder
+    if (this.session.currentPlayerId) {
+      const activePlayer = this.players.get(this.session.currentPlayerId);
+      if (activePlayer && activePlayer.currentHighBidderId === id) {
+        this.players.set(activePlayer.id, {
+          ...activePlayer,
+          currentBid: 0,
+          currentHighBidderId: null,
+        });
+        this.session.lastHighBid = null;
+        this.session.lastBidTimestamp = null;
+        if (this.session.status === 'HAMMER_GOING_1' || this.session.status === 'HAMMER_GOING_2') {
+          this.session.status = 'BIDDING_ACTIVE';
+        }
+      }
+    }
+
+    this.teams.delete(id);
+    this.persistTeamsToDisk();
+    return { success: true, deletedTeam: team };
+  }
+
   public updateTeam(id: string, partial: Partial<Team>): Team {
     const t = this.teams.get(id);
     if (!t) throw new Error(`Team ${id} not found`);
@@ -297,6 +407,7 @@ export class DatabaseManager {
 
     const updated = { ...t, ...partial };
     this.teams.set(id, updated);
+    this.persistTeamsToDisk();
     return { ...updated };
   }
 
@@ -454,8 +565,26 @@ export class DatabaseManager {
       },
     ];
 
-    for (const team of seededTeams) {
-      this.teams.set(team.id, team);
+    // Try restoring teams from disk if available
+    if (fs.existsSync(this.teamsFilePath)) {
+      try {
+        const raw = fs.readFileSync(this.teamsFilePath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          for (const team of parsed) {
+            this.teams.set(team.id, team);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load teams from disk:', err);
+      }
+    }
+
+    if (this.teams.size === 0) {
+      for (const team of seededTeams) {
+        this.teams.set(team.id, team);
+      }
+      this.persistTeamsToDisk();
     }
 
     const seededPlayers: Player[] = [

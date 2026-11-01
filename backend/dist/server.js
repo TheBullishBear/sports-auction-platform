@@ -61,8 +61,16 @@ app.post('/api/reset', (_req, res) => {
     stateMachine.resetAuction();
     res.json({ success: true, message: 'Auction reset to initial state' });
 });
+app.post('/api/teams', (req, res) => {
+    const result = stateMachine.addNewTeam(req.body);
+    res.json(result);
+});
 app.put('/api/teams/:id', (req, res) => {
     const result = stateMachine.updateTeamDetails(req.params.id, req.body);
+    res.json(result);
+});
+app.delete('/api/teams/:id', (req, res) => {
+    const result = stateMachine.deleteTeam(req.params.id);
     res.json(result);
 });
 app.put('/api/players/:id', (req, res) => {
@@ -234,6 +242,16 @@ io.on('connection', (socket) => {
     });
     socket.on('auctioneer:update_team', (data, callback) => {
         const res = stateMachine.updateTeamDetails(data.teamId, data);
+        if (callback)
+            callback(res);
+    });
+    socket.on('auctioneer:add_team', (data, callback) => {
+        const res = stateMachine.addNewTeam(data);
+        if (callback)
+            callback(res);
+    });
+    socket.on('auctioneer:delete_team', (data, callback) => {
+        const res = stateMachine.deleteTeam(data.teamId);
         if (callback)
             callback(res);
     });

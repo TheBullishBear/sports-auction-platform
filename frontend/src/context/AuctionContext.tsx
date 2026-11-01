@@ -32,6 +32,18 @@ interface AuctionContextType {
     teamId: string,
     updates: { name?: string; code?: string; logo?: string; totalPurse?: number; maxSlots?: number }
   ) => Promise<{ success: boolean; message: string }>;
+  addNewTeam: (
+    data: {
+      name: string;
+      code?: string;
+      logo?: string;
+      primaryColor?: string;
+      secondaryColor?: string;
+      totalPurse?: number;
+      maxSlots?: number;
+    }
+  ) => Promise<{ success: boolean; message: string; team?: Team }>;
+  deleteTeam: (teamId: string) => Promise<{ success: boolean; message: string }>;
   updatePlayer: (
     playerId: string,
     updates: { name?: string; role?: any; basePrice?: number; country?: string }
@@ -200,6 +212,12 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     socket.on('auction:state_update', (newSnapshot: LiveStateSnapshot) => {
       setSnapshot(newSnapshot);
+      if (newSnapshot.teams && newSnapshot.teams.length > 0) {
+        setActiveTeamId((prev) => {
+          const exists = newSnapshot.teams.some((t) => t.id === prev);
+          return exists ? prev : newSnapshot.teams[0].id;
+        });
+      }
     });
 
     socket.on('bid:accepted', (payload: { bid: BidLedgerEntry; snapshot: LiveStateSnapshot }) => {
@@ -325,6 +343,34 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     []
   );
 
+  const addNewTeam = useCallback(
+    async (data: {
+      name: string;
+      code?: string;
+      logo?: string;
+      primaryColor?: string;
+      secondaryColor?: string;
+      totalPurse?: number;
+      maxSlots?: number;
+    }) => {
+      if (!socketRef.current) return { success: false, message: 'Socket not connected' };
+      return new Promise<{ success: boolean; message: string; team?: Team }>((resolve) => {
+        socketRef.current?.emit('auctioneer:add_team', data, resolve);
+      });
+    },
+    []
+  );
+
+  const deleteTeam = useCallback(
+    async (teamId: string) => {
+      if (!socketRef.current) return { success: false, message: 'Socket not connected' };
+      return new Promise<{ success: boolean; message: string }>((resolve) => {
+        socketRef.current?.emit('auctioneer:delete_team', { teamId }, resolve);
+      });
+    },
+    []
+  );
+
   const updatePlayer = useCallback(
     async (
       playerId: string,
@@ -443,6 +489,8 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         togglePause,
         resetAuction,
         updateTeam,
+        addNewTeam,
+        deleteTeam,
         updatePlayer,
         addNewPlayer,
         deletePlayer,

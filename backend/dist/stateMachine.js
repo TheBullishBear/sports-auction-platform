@@ -293,6 +293,41 @@ class AuctionStateMachine {
         this.notifyStateChange();
         return { success: true, message: `Team ${updated.name} updated successfully.`, team: updated };
     }
+    // Action 7B: Auctioneer adds a new franchise team
+    addNewTeam(data) {
+        if (!data.name || !data.name.trim()) {
+            return { success: false, message: 'Franchise team name is required.' };
+        }
+        const team = this.db.addTeam(data);
+        this.notifyStateChange();
+        return {
+            success: true,
+            message: `Franchise "${team.name}" (${team.code}) created successfully!`,
+            team,
+        };
+    }
+    // Action 7C: Auctioneer deletes a franchise team
+    deleteTeam(teamId) {
+        const existing = this.db.getTeam(teamId);
+        if (!existing) {
+            return { success: false, message: `Team ${teamId} not found.` };
+        }
+        try {
+            const { deletedTeam } = this.db.deleteTeam(teamId);
+            this.notifyStateChange();
+            return {
+                success: true,
+                message: `Franchise "${deletedTeam.name}" deleted successfully.`,
+                deletedTeam,
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                message: err.message || `Failed to delete team ${teamId}`,
+            };
+        }
+    }
     // Action 8: Auctioneer edits player name, role, basePrice, country
     updatePlayerDetails(playerId, updates) {
         const player = this.db.getPlayer(playerId);

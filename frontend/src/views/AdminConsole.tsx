@@ -54,6 +54,8 @@ export const AdminConsole: React.FC = () => {
     hammerStrike,
     togglePause,
     updateTeam,
+    addNewTeam,
+    deleteTeam,
     updatePlayer,
     addNewPlayer,
     deletePlayer,
@@ -96,6 +98,15 @@ export const AdminConsole: React.FC = () => {
   // Editing Teams & Players State
   const [isEditingTeams, setIsEditingTeams] = useState<boolean>(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+
+  // Add New Team State
+  const [isAddingTeam, setIsAddingTeam] = useState<boolean>(false);
+  const [newTeamName, setNewTeamName] = useState<string>('');
+  const [newTeamCode, setNewTeamCode] = useState<string>('');
+  const [newTeamLogo, setNewTeamLogo] = useState<string>('');
+  const [newTeamColor, setNewTeamColor] = useState<string>('#0284c7');
+  const [newTeamPurse, setNewTeamPurse] = useState<number>(defaultMaxPurse);
+  const [newTeamSlots, setNewTeamSlots] = useState<number>(defaultTotalPlayers);
 
   // Add New Player State
   const [isAddingPlayer, setIsAddingPlayer] = useState<boolean>(false);
@@ -302,6 +313,76 @@ export const AdminConsole: React.FC = () => {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    if (teams.length <= 1) {
+      alert('Cannot delete the only remaining franchise team. At least 1 team must exist.');
+      return;
+    }
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${teamName}"? Any players acquired by this franchise will be released back to the auction pool.`
+      )
+    ) {
+      const res = await deleteTeam(teamId);
+      if (res.success) {
+        setTeamsState((prev) => {
+          const copy = { ...prev };
+          delete copy[teamId];
+          return copy;
+        });
+        showFeedback(`🗑️ ${teamName} deleted successfully.`);
+      } else {
+        alert(res.message || 'Failed to delete team');
+      }
+    }
+  };
+
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeamName.trim()) {
+      showFeedback('Please enter a franchise name');
+      return;
+    }
+
+    const payload = {
+      name: newTeamName.trim(),
+      code: newTeamCode.trim().toUpperCase() || undefined,
+      logo: newTeamLogo.trim() || undefined,
+      primaryColor: newTeamColor,
+      totalPurse: Number(newTeamPurse) || undefined,
+      maxSlots: Number(newTeamSlots) || undefined,
+    };
+
+    const res = await addNewTeam(payload);
+    if (res.success) {
+      showFeedback(res.message);
+      setIsAddingTeam(false);
+      resetNewTeamForm();
+    } else {
+      alert(res.message || 'Failed to add team');
+    }
+  };
+
+  const handleNewTeamLogoUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setNewTeamLogo(base64);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetNewTeamForm = () => {
+    setNewTeamName('');
+    setNewTeamCode('');
+    setNewTeamLogo('');
+    setNewTeamColor('#0284c7');
+    setNewTeamPurse(snapshot?.session.maxPursePerTeam || 1000000000);
+    setNewTeamSlots(snapshot?.session.totalPlayersPerTeam || 11);
   };
 
   const openEditPlayerModal = (p: Player) => {
@@ -1510,8 +1591,8 @@ export const AdminConsole: React.FC = () => {
                       />
                     </div>
 
-                    {/* Save Button */}
-                    <div className="pt-2 md:pt-4 shrink-0">
+                    {/* Action Buttons: Save & Delete */}
+                    <div className="pt-2 md:pt-4 shrink-0 flex items-center gap-1.5">
                       <button
                         onClick={() => handleSaveTeam(t.id)}
                         className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
@@ -1530,20 +1611,259 @@ export const AdminConsole: React.FC = () => {
                           </>
                         )}
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTeam(t.id, currentName)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                        title={`Permanently delete franchise ${currentName}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Delete</span>
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTeamPurse(snapshot?.session.maxPursePerTeam || 1000000000);
+                  setNewTeamSlots(snapshot?.session.totalPlayersPerTeam || 11);
+                  setIsAddingTeam(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-display font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Add New Team</span>
+              </button>
+
               <button
                 onClick={() => setIsEditingTeams(false)}
-                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors"
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 Close & Return
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 
+        ========================================================================
+        MODAL: CREATE NEW FRANCHISE TEAM
+        ========================================================================
+      */}
+      {isAddingTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xl rounded-3xl bg-slate-900 border border-emerald-500/30 shadow-2xl p-6 relative max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Ambient Glow */}
+            <div className="absolute -right-20 -top-20 w-60 h-60 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg text-white">
+                    Add New Franchise Team
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Create a new bidding franchise for the live auction
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsAddingTeam(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTeam} className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
+              {/* Team Name */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Franchise Name *
+                </label>
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={(e) => {
+                    setNewTeamName(e.target.value);
+                    if (!newTeamCode && e.target.value.length >= 2) {
+                      const words = e.target.value.trim().split(/\s+/);
+                      const suggested = words.length > 1
+                        ? words.map((w) => w[0]).join('').slice(0, 4).toUpperCase()
+                        : e.target.value.slice(0, 3).toUpperCase();
+                      setNewTeamCode(suggested);
+                    }
+                  }}
+                  placeholder="e.g. Pune Warriors, Lucknow Super Giants"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm font-semibold focus:outline-none focus:border-emerald-400"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Code */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Short Code / Abbreviation * (Max 5 Chars)
+                </label>
+                <input
+                  type="text"
+                  maxLength={5}
+                  value={newTeamCode}
+                  onChange={(e) => setNewTeamCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. PW, LSG"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-sm uppercase font-bold focus:outline-none focus:border-emerald-400"
+                  required
+                />
+              </div>
+
+              {/* Team Logo (URL or file upload) */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Franchise Logo (URL or File Upload)
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                    {newTeamLogo ? (
+                      <img src={newTeamLogo} alt="Logo preview" className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-slate-500" />
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://... or upload local file"
+                    value={newTeamLogo.startsWith('data:') ? 'Local logo uploaded' : newTeamLogo}
+                    onChange={(e) => setNewTeamLogo(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-emerald-400 truncate"
+                  />
+                  <label className="cursor-pointer px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleNewTeamLogoUpload(file);
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Theme Color Picker */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Franchise Primary Brand Color
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { label: 'Sky', hex: '#0284c7' },
+                    { label: 'Gold', hex: '#f59e0b' },
+                    { label: 'Red', hex: '#dc2626' },
+                    { label: 'Purple', hex: '#7c3aed' },
+                    { label: 'Emerald', hex: '#059669' },
+                    { label: 'Pink', hex: '#db2777' },
+                    { label: 'Indigo', hex: '#4f46e5' },
+                    { label: 'Cyan', hex: '#0891b2' },
+                  ].map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setNewTeamColor(c.hex)}
+                      className={`w-8 h-8 rounded-xl border-2 transition-all flex items-center justify-center ${
+                        newTeamColor === c.hex ? 'scale-110 border-white shadow-lg' : 'border-slate-700 opacity-75 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.label}
+                    >
+                      {newTeamColor === c.hex && <Check className="w-4 h-4 text-white stroke-[3]" />}
+                    </button>
+                  ))}
+                  <input
+                    type="color"
+                    value={newTeamColor}
+                    onChange={(e) => setNewTeamColor(e.target.value)}
+                    className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                    title="Custom color"
+                  />
+                </div>
+              </div>
+
+              {/* Total Purse & Slots Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Purse */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Total Purse (INR)
+                    </label>
+                    <span className="text-[11px] font-mono font-bold text-emerald-400">
+                      {formatCurrency(Number(newTeamPurse) || 0)}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="50000000"
+                    min="10000000"
+                    value={newTeamPurse}
+                    onChange={(e) => setNewTeamPurse(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-xs font-bold focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                {/* Slots */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Squad Slots Limit
+                    </label>
+                    <span className="text-[11px] font-mono font-bold text-sky-400">
+                      {newTeamSlots} Players
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="35"
+                    value={newTeamSlots}
+                    onChange={(e) => setNewTeamSlots(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-xs font-bold focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+
+              {/* Form Buttons */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTeam(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-display font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Create Franchise Team</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
