@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import { AuctionStateMachine } from './stateMachine';
 import { DatabaseManager } from './db';
+import { CricketDatabaseManager } from './cricketDb';
 
 const app = express();
 const server = http.createServer(app);
@@ -13,7 +14,7 @@ const server = http.createServer(app);
 app.use(
   cors({
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
 );
 app.use(express.json());
@@ -22,9 +23,10 @@ app.use(express.json());
 const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
 app.use(express.static(frontendDist));
 
-// Initialize State Machine and DB
+// Initialize State Machine and DBs
 const stateMachine = new AuctionStateMachine();
 const db = DatabaseManager.getInstance();
+const cricketDb = CricketDatabaseManager.getInstance();
 
 // Duplex WebSocket Engine with high-performance configuration
 const io = new Server(server, {
@@ -108,6 +110,82 @@ app.post('/api/settings/total-players', (req: Request, res: Response) => {
   const { slots, applyToAll } = req.body;
   const result = stateMachine.setTotalPlayersPerTeam(Number(slots), applyToAll !== false);
   res.json(result);
+});
+
+// ==================== CRICKET TOURNAMENT & SCORING REST APIS ====================
+app.get('/api/cricket/tournaments', (_req: Request, res: Response) => {
+  res.json(cricketDb.getAllTournaments());
+});
+
+app.get('/api/cricket/tournaments/:id', (req: Request, res: Response) => {
+  const t = cricketDb.getTournament(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Tournament not found' });
+  res.json(t);
+});
+
+app.post('/api/cricket/tournaments', (req: Request, res: Response) => {
+  const t = cricketDb.createTournament(req.body);
+  res.json(t);
+});
+
+app.get('/api/cricket/tournaments/:id/standings', (req: Request, res: Response) => {
+  const standings = cricketDb.getTournamentStandings(req.params.id);
+  res.json(standings);
+});
+
+app.get('/api/cricket/matches/:id', (req: Request, res: Response) => {
+  const m = cricketDb.getMatch(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Match not found' });
+  res.json(m);
+});
+
+app.post('/api/cricket/matches/:id/toss', (req: Request, res: Response) => {
+  const { winnerTeamId, decision } = req.body;
+  const match = cricketDb.updateToss(req.params.id, winnerTeamId, decision);
+  if (match) {
+    io.to(`match:${match.id}`).emit('match:update', match);
+    io.emit('tournaments:update');
+  }
+  res.json({ success: !!match, match });
+});
+
+app.post('/api/cricket/matches/:id/start-innings', (req: Request, res: Response) => {
+  const { inningsNumber, strikerId, nonStrikerId, bowlerId } = req.body;
+  const match = cricketDb.startInnings(req.params.id, inningsNumber, strikerId, nonStrikerId, bowlerId);
+  if (match) {
+    io.to(`match:${match.id}`).emit('match:update', match);
+    io.emit('tournaments:update');
+  }
+  res.json({ success: !!match, match });
+});
+
+app.post('/api/cricket/matches/:id/ball', (req: Request, res: Response) => {
+  const result = cricketDb.recordBall(req.params.id, req.body);
+  if (result) {
+    io.to(`match:${result.match.id}`).emit('match:update', result.match);
+    io.to(`match:${result.match.id}`).emit('match:new_ball', result.newBall);
+    io.emit('tournaments:update');
+  }
+  res.json({ success: !!result, match: result?.match });
+});
+
+app.post('/api/cricket/matches/:id/undo', (req: Request, res: Response) => {
+  const match = cricketDb.undoLastBall(req.params.id);
+  if (match) {
+    io.to(`match:${match.id}`).emit('match:update', match);
+    io.emit('tournaments:update');
+  }
+  res.json({ success: !!match, match });
+});
+
+app.post('/api/cricket/matches/:id/edit-ball', (req: Request, res: Response) => {
+  const { ballId, updatedBall } = req.body;
+  const match = cricketDb.editBall(req.params.id, ballId, updatedBall);
+  if (match) {
+    io.to(`match:${match.id}`).emit('match:update', match);
+    io.emit('tournaments:update');
+  }
+  res.json({ success: !!match, match });
 });
 
 // SPA fallback for HTML5 routing
@@ -283,6 +361,76 @@ io.on('connection', (socket: Socket) => {
     ) => {
       const res = stateMachine.setTotalPlayersPerTeam(data.slots, data.applyToAll !== false);
       if (callback) callback(res);
+    }
+  );
+
+  // ==================== CRICKET REAL-TIME SOCKET.IO EVENTS ====================
+  socket.on('match:join', ({ matchId }: { matchId: string }) => {
+    socket.join(`match:${matchId}`);
+    const match = cricketDb.getMatch(matchId);
+    if (match) {
+      socket.emit('match:update', match);
+    }
+  });
+
+  socket.on('match:leave', ({ matchId }: { matchId: string }) => {
+    socket.leave(`match:${matchId}`);
+  });
+
+  socket.on(
+    'scorer:record_ball',
+    (data: { matchId: string; ball: any }, callback?: (res: any) => void) => {
+      const result = cricketDb.recordBall(data.matchId, data.ball);
+      if (result) {
+        io.to(`match:${result.match.id}`).emit('match:update', result.match);
+        io.to(`match:${result.match.id}`).emit('match:new_ball', result.newBall);
+        io.emit('tournaments:update');
+        if (callback) callback({ success: true, match: result.match });
+      } else {
+        if (callback) callback({ success: false, error: 'Failed to record ball' });
+      }
+    }
+  );
+
+  socket.on(
+    'scorer:undo_ball',
+    (data: { matchId: string }, callback?: (res: any) => void) => {
+      const match = cricketDb.undoLastBall(data.matchId);
+      if (match) {
+        io.to(`match:${match.id}`).emit('match:update', match);
+        io.emit('tournaments:update');
+        if (callback) callback({ success: true, match });
+      } else {
+        if (callback) callback({ success: false, error: 'Failed to undo ball' });
+      }
+    }
+  );
+
+  socket.on(
+    'scorer:edit_ball',
+    (data: { matchId: string; ballId: string; updatedBall: any }, callback?: (res: any) => void) => {
+      const match = cricketDb.editBall(data.matchId, data.ballId, data.updatedBall);
+      if (match) {
+        io.to(`match:${match.id}`).emit('match:update', match);
+        io.emit('tournaments:update');
+        if (callback) callback({ success: true, match });
+      } else {
+        if (callback) callback({ success: false, error: 'Failed to edit ball' });
+      }
+    }
+  );
+
+  socket.on(
+    'scorer:toss',
+    (data: { matchId: string; winnerTeamId: string; decision: any }, callback?: (res: any) => void) => {
+      const match = cricketDb.updateToss(data.matchId, data.winnerTeamId, data.decision);
+      if (match) {
+        io.to(`match:${match.id}`).emit('match:update', match);
+        io.emit('tournaments:update');
+        if (callback) callback({ success: true, match });
+      } else {
+        if (callback) callback({ success: false });
+      }
     }
   );
 });

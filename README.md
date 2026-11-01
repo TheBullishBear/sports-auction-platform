@@ -1,76 +1,118 @@
-# 🏏 Real-Time Sports Auction Platform
+# 🏏 Real-Time Sports Auction & Live Cricket Scoring Platform
 
-A high-performance, real-time web-based sports auction platform engineered for **sub-50ms live bidding latency** and **strict ACID consistency**.
-
----
-
-## 🌟 Key Architecture & Capabilities
-
-### 1. Database & Transactional Concurrency
-- **Row-Level Mutex Locking**: Prevents race conditions and guarantees that two franchises can never successfully claim the same player simultaneously.
-- **Strict Digital Purse Invariants**: Enforces `remaining_purse >= 0` check constraints to prevent overdrafts.
-- **Purse Reserve Constraint Engine**: Validates that teams reserve sufficient purse to sign mandatory minimum roster slots at base price before approving any bid:
-  $$\text{Remaining Purse} - \text{Bid} \ge (\text{Min Required Slots} - \text{Current Slots} - 1) \times \text{Base Price}$$
-- **Append-Only Immutable Bidding Ledger**: High-resolution timestamped ledger with monotonic sequence tracking.
-
-### 2. Real-Time State Machine (Backend)
-- **Duplex WebSocket Engine (Socket.IO / Fastify)**: Sub-50ms roundtrip broadcast fanout.
-- **Authoritative Finite State Machine (FSM)**:
-  `IDLE` ➔ `BID_PENDING` ➔ `BIDDING_ACTIVE` ➔ `HAMMER_GOING_1` ➔ `HAMMER_GOING_2` ➔ `HAMMER_FINAL_CALL` ➔ `SOLD` / `UNSOLD`.
-- **Dynamic Anti-Sniping**: Automatically resets timer to +10s if any bid is received with $< 8$ seconds remaining on the clock.
-- **Multi-Tier Bid Validation**: Budget, increment slabs, roster limit, overseas quota, self-bidding rejection.
-
-### 3. User Interfaces (Frontend)
-- **Admin Console (Auctioneer Desk)**:
-  - Interactive player on-block queue selector
-  - Tactile Hammer Strikes ("Going Once", "Going Twice", "SOLD! Drop Gavel", "Pass Lot")
-  - Clock controls (15s / 20s / 30s timers, Pause / Resume)
-- **Franchise Desk (Team Owner Cockpit)**:
-  - Multi-franchise switcher (MI, CSK, RCB, KKR, GT, SRH)
-  - One-Click Instant Bid button with dynamic increment slab calculation (+10L, +25L, +50L, +1 Cr)
-  - Visual status pill: `LEADING (Green)` vs `OUTBID (Red alert)`
-  - Real-time purse burn telemetry & roster quota meters
-- **Stadium Live Tracker (Public Spectator Display)**:
-  - Broadcast stage with player photos, country flags, and career statistics
-  - High active bid spotlight with winning franchise color branding
-  - Real-time live bidding war ticker with microsecond timestamps
-  - Recent sales transactions reel
-  - Tournament franchise purse leaderboard
+A comprehensive, production-ready platform featuring:
+1. **Real-Time Sports Auction Suite**: Sub-50ms live bidding latency, ACID concurrency engine, and franchise desks.
+2. **Mobile-First Live Cricket Scoring & Tournament PWA**: Event-sourced ball-by-ball thumb scoring at ground level, automated ICC Net Run Rate (NRR) points table, Orange/Purple cap leaderboards, and instant WhatsApp scorecard graphics.
 
 ---
 
-## 🚀 Quick Start Guide
+## 🌟 Cricket Scoring & Tournament Management Module
+
+### 1. Event-Sourced Deterministic Reducer
+- **Zero Invariant Drift**: Every ball is stored as an immutable event in the match ledger (`BallEvent`).
+- **Instant 1-Click Undo**: Removing the last delivery automatically recalculates overs, bowler spells, striker rotation, boundaries, and run rates deterministically.
+- **Auditable Ball Editing**: Modify any delivery in the ledger, and the entire innings state re-evaluates cleanly.
+- **Accurate Cricket Rules**:
+  - Wides & No-Balls add runs without advancing the legal delivery count (`0.1`, `0.2` ... `0.6`).
+  - Automatic strike rotation on odd runs ($1, 3, 5$) and at the conclusion of each over (6 legal balls).
+  - Free Hit indicator activated automatically on the delivery following any No-Ball (restricting dismissals to Run Out only).
+  - Over quota validation: Enforces maximum overs per bowler (e.g., max 2 overs per bowler in a 5-over or 10-over match).
+
+### 2. Mobile-First 1-Hand Thumb Scoring Console (`#cricket-scorer`)
+- Built for ground-level scoring under bright outdoor sunlight with a high-contrast **Sunlight Mode** toggle.
+- Large tactile thumb keypad:
+  - `0` (Dot), `1`, `2`, `3`
+  - `4` (Boundary - Emerald), `6` (Maximum - Purple)
+  - `+1 Wide`, `+1 No Ball`, `+1 Bye`, `+1 Leg Bye`
+  - `OUT / WICKET` (Opens quick modal for dismissal type, catcher/fielder, and incoming batter)
+  - `Undo Ball` (Instant rollback with haptic feedback)
+- Auto-prompts for:
+  - Match Toss (Winner & Bat/Bowl decision)
+  - Playing Openers & Opening Bowler
+  - Next Bowler at the end of each over
+
+### 3. Public Spectator Match Center (`#cricket-match`)
+- Live real-time WebSocket sync (zero manual refresh needed).
+- Hero live score banner: Current score, wickets, overs, CRR, Target, RRR.
+- Interactive Scorecards:
+  - Batting: Runs, Balls, 4s, 6s, Strike Rate, Dismissal text.
+  - Bowling: Overs, Maidens, Runs, Wickets, Economy, Dots.
+  - Fall of Wickets & Current Partnership tracker.
+- Real-time natural text ball-by-ball commentary feed.
+- **WhatsApp Share & Export**:
+  - 1-Click "Copy WhatsApp Summary" formatted in WhatsApp bold markdown with live match URL.
+  - 1-Click "Download Scorecard Graphic" using HTML5 Canvas for sharing directly to WhatsApp groups and social media.
+
+### 4. Tournament Hub & Standings (`#cricket-tournament`)
+- Automated Points Table with official ICC Net Run Rate (NRR) computation:
+  $$\text{NRR} = \left(\frac{\text{Total Runs Scored}}{\text{Total Overs Faced}}\right) - \left(\frac{\text{Total Runs Conceded}}{\text{Total Overs Bowled}}\right)$$
+  *(Treats all-out innings as the full quota of overs).*
+- 🟠 **Orange Cap**: Top run-scorers with strike rates and boundary counts.
+- 🟣 **Purple Cap**: Top wicket-takers with economy rates.
+- **Auction Integration**: 1-Click button to import teams and acquired players from your completed Auction database directly into a tournament!
+
+---
+
+## 📱 PWA (Progressive Web App) Installation
+
+The scoring module is fully installable on mobile phones:
+1. Open the platform URL in **Chrome (Android)** or **Safari (iOS)**.
+2. Tap the browser menu (**⋮** on Android, or Share icon on iOS).
+3. Select **"Add to Home Screen"** or **"Install App"**.
+4. The app will launch in fullscreen standalone mode with native app performance!
+
+---
+
+## 🛠️ Setup & Local Development
 
 ### Prerequisites
 - Node.js 18+ (Node.js LTS portable runtime is included in the project tools)
 
-### 1. Start the Real-Time Backend Server (Port 4000)
+### Environment Variables
+| Variable | Description | Default |
+|---|---|---|
+| `PORT` | Listening port for Express & Socket.io | `4000` |
+| `NODE_ENV` | Environment mode (`development` / `production`) | `development` |
+
+### 1. Build and Run Local Server
 ```bash
-cd backend
+# Unified Build
 npm run build
+
+# Start Platform Server
 npm start
 ```
+Open **`http://localhost:4000`** in your browser.
 
-### 2. Start the Frontend Application (Port 5173)
-```bash
-cd frontend
-npm run dev
-```
-
-Open `http://localhost:5173` in your browser.
+### 2. Available Platform URL Routes
+- **Auctioneer Console:** `http://localhost:4000/#admin`
+- **Franchise Bidding Desk:** `http://localhost:4000/#franchise`
+- **Stadium Auction Tracker:** `http://localhost:4000/#public`
+- **Player Registration:** `http://localhost:4000/#register`
+- **Cricket Live Scorer:** `http://localhost:4000/#cricket-scorer`
+- **Cricket Match Center:** `http://localhost:4000/#cricket-match`
+- **Cricket Tournament Hub:** `http://localhost:4000/#cricket-tournament`
 
 ---
 
-## 🧪 Automated Verification Suite
-To run the automated concurrency, row lock, and constraint verification tests:
+## 🧪 Automated Unit Test Suite
+
+Run the automated scoring engine unit tests verifying legal ball counts, extras, strike rotation, free hits, undo replay, and NRR math:
 ```bash
-cd backend
-npm run build
-node dist/testEngine.js
+npx ts-node backend/src/cricketScoringEngine.test.ts
 ```
-All 24 automated test cases verify:
-- Simultaneous 5-way bid race condition handling
-- Zero overdraft guarantee
-- Minimum purse reserve invariant
-- Overseas roster quota enforcement
-- Double-claim prevention on hammer drops
+
+All 16 unit tests verify:
+- Wides/No-balls do not advance legal delivery count.
+- Odd runs swap striker & non-striker.
+- End-of-over swaps ends.
+- Free hit activates on delivery following No-Ball.
+- Undo correctly restores score and batter stats.
+- Accurate ICC Net Run Rate calculations.
+
+---
+
+## 🚀 1-Click Cloud Deployment (Render.com)
+
+1. Double-click [`deploy_to_cloud.bat`](./deploy_to_cloud.bat) in the project folder to automatically compile, commit, and push updates to GitHub.
+2. Render automatically detects commits on branch `main` and deploys live in ~1–2 minutes!

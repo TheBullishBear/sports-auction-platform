@@ -1,0 +1,18 @@
+{
+  "name": "Live Cricket Scoring & Tournament Hub",
+  "short_name": "CricketLive",
+  "description": "Mobile-first real-time ball-by-ball cricket scoring and spectator broadcast",
+  "start_url": "/#cricket-scorer",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
