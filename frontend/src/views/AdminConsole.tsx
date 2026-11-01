@@ -526,17 +526,6 @@ export const AdminConsole: React.FC = () => {
             <span>Edit Teams</span>
           </button>
 
-          {/* Quick Switch to Cricket Scoring & Tournaments */}
-          <button
-            onClick={() => {
-              window.location.hash = 'cricket-tournament';
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950/40 border border-emerald-400/50 active:scale-95"
-            title="Open Cricket Scoring & Tournament Hub"
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-300" />
-            <span>🏏 Cricket Hub & Scoring</span>
-          </button>
 
           <button
             onClick={handleLogout}
